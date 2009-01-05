@@ -1,5 +1,5 @@
 require 'rubygems'
-gem 'dm-core', '=0.9.3'
+gem 'dm-core' #, '=0.9.3'
 require 'dm-core'
 # 
 # gem 'dm-validations', '=0.9.3'
