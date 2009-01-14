@@ -1,4 +1,5 @@
-gem 'dm-types', '=0.9.3'
+require 'rubygems'
+gem 'dm-types', '>=0.9.3'
 require 'spec'
 require 'pathname'
 require Pathname(__FILE__).dirname.parent.expand_path + 'lib/solr_adapter'
@@ -8,7 +9,6 @@ require 'dm-types'
 require 'ostruct'
 require 'yaml'
 require 'facets/hash/symbolize_keys'
-
 
 configuration = YAML.load(<<-END_YAML
 ---
@@ -24,7 +24,6 @@ DataMapper.setup(:default, configuration[:test])
 
 class Desk
   include DataMapper::Resource
-
   property :id, String, :key => true, :field => :id_s, :nullable => false
   property :content, String, :field => :content_t
   property :width, Integer, :field => :width_i
@@ -49,7 +48,7 @@ end
 describe DataMapper::Adapters::SolrAdapter do
   def delete_all_desks
     DataMapper::Repository.adapters[:default].send(:with_connection) do |c|
-      c.delete_by_query("+_type:Desk")
+      c.delete_by_query("+solr_type:Desk")
     end
   end
 
@@ -70,35 +69,39 @@ describe DataMapper::Adapters::SolrAdapter do
   before :all do
     delete_all_desks
   end
-  
+
+  it "should not allow the creation of a record with a null key if the key is not nullable" do
+    Desk.new.save.should_not be(true)
+  end
+
   it "should properly set the hidden type field" do
-    Pencil.new.send(:_type).should == Pencil.to_s
+    Pencil.new.send(:solr_type).should == Pencil.to_s
   end
   
   it "should define hidden some hidden fields" do
-    lambda { Pencil.new.send(:_id) }.should_not raise_error
+    lambda { Pencil.new.send(:solr_id) }.should_not raise_error
   end
   
   it "the hidden id field should be the composite of the key fields" do
-    Pencil.new(:brand => 'faber', :composition => 'wood').send(:_id).should == 'faber#wood'
+    Pencil.new(:brand => 'faber', :composition => 'wood').send(:solr_id).should == 'faber#wood'
   end
-  
+
   it "should properly save and retrieve composite keys" do
     Pencil.new(:brand => 'faber', :composition => 'wood').save
     p = Pencil.get!('faber', 'wood')
     p.key.should == ['faber', 'wood']
-    p.send(:attribute_get, :_id).should == ['faber', 'wood'].join('#')
+    p.send(:attribute_get, :solr_id).should == ['faber', 'wood'].join('#')
   end
 
   it "should mark new records as such" do
     Desk.new(:id => "don't save me", :content => "this is a test").new_record?.should be(true)
   end
-  
+
   it "should properly create records" do
     successful = Desk.new(:id => "save me", :content => "this is a test").save
     successful.should be(true)
   end
-  
+
   it "should mark saved records as not new" do
     desk = Desk.new(:id => "mark_me_as_not_new", :content => "this is a test")
     desk.save
@@ -118,11 +121,7 @@ describe DataMapper::Adapters::SolrAdapter do
     desk = Desk.get(2)
     desk.score.should > 0
   end
-  
-  it "should not allow the creation of a record with a null key if the key is not nullable" do
-    Desk.new.save.should_not be(true)
-  end
-  
+    
   it "should destroy a record" do
     Desk.new(:id => "to_be_destroyed", :content => "this is a test").save
     desk = Desk.get!("to_be_destroyed")
@@ -139,7 +138,7 @@ describe DataMapper::Adapters::SolrAdapter do
     desk2.content.should eql("this is updated")
     desk2.width.should eql(5)
   end
-  
+
   it "should fetch all records in response to Model.all" do
     delete_all_desks
   
@@ -155,7 +154,7 @@ describe DataMapper::Adapters::SolrAdapter do
       desk.content.should eql("I am #{i}")
     end
   end
-  
+
   it "should set score for all retrieved models" do
     delete_all_desks
     num_to_create = 5
@@ -311,7 +310,7 @@ describe DataMapper::Adapters::SolrAdapter do
       nil
     end
   end
-  
+
   it "should allow the creation of many records in batches" do
     delete_all_desks
     num_to_create = 23
@@ -321,7 +320,7 @@ describe DataMapper::Adapters::SolrAdapter do
     Desk.create_many(g, :batch_size => batch_size) {|x| Desk.new(:id => x)}
     Desk.all.size.should == num_to_create
   end
-  
+
   it "should perform the right number of operation for batched requests" do
     num_to_create = 23
     batch_size = 3
@@ -331,7 +330,7 @@ describe DataMapper::Adapters::SolrAdapter do
       Desk.repository.adapter.create(batch)
     end
   end
-  
+
   it "should return items that caused batches to fail" do
     num_to_create = 23
     batch_size = 3
@@ -369,5 +368,4 @@ describe DataMapper::Adapters::SolrAdapter do
       end
     }.should raise_error(Exception)
   end
-  
 end

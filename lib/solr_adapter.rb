@@ -1,6 +1,8 @@
 require 'rubygems'
 gem 'dm-core' #, '=0.9.3'
 require 'dm-core'
+require 'dm-validations'
+
 # 
 # gem 'dm-validations', '=0.9.3'
 # require 'dm-validations'
@@ -16,8 +18,10 @@ module DataMapper
     
     def to_solr_document(dirty=false)
       property_list = self.class.properties.select { |key, value| dirty ? self.dirty_attributes.key?(key) : true }
-      inferred_fields = {properties[:_type].field => solr_type_name}
-      inferred_fields.merge!(properties[:_id].field => _id) if _id
+
+      inferred_fields = {properties[:solr_type].field => solr_type_name}
+      inferred_fields.merge!(properties[:solr_id].field => solr_id) if solr_id
+
       return Solr::Document.new(property_list.inject(inferred_fields) do |accumulator, property|
         if(value = attribute_get(property.name))
           cast_value = value
@@ -50,12 +54,11 @@ module DataMapper
       def create(resources)
         created = 0
         with_connection do |connection|
-          if(connection.add(resources.map{|r| r.to_solr_document}))
-            created += 1
-          end
+          created += 1 if(connection.add(resources.map{|r| r.to_solr_document}.compact))
         end
         
         created
+
       end
 
       def read_many(query)
@@ -113,19 +116,13 @@ module DataMapper
           return uri_or_options.normalize
         end
 
-        adapter = uri_or_options.delete(:adapter)
-        user = nil
-        password = nil
-        host = (uri_or_options.delete(:host) || "")
-        port = uri_or_options.delete(:port)
-        index = uri_or_options.delete(:index)
-        query = nil
-
-        normalized = Addressable::URI.new(
-          adapter, user, password, host, port, index, query, nil
-        )
-        
-        return normalized
+        Addressable::URI.new(:adapter => uri_or_options.delete(:adapter), 
+                             :host    => (uri_or_options.delete(:host) || ""), 
+                             :port    => uri_or_options.delete(:port), 
+                             :path    => uri_or_options.delete(:index))
+                             #:query => nil,
+                             #:user => nil,
+                             #:password => nil                                         
       end
 
       # (lritter 27/08/2008 13:39): will only return up to 100000 records...
@@ -225,10 +222,10 @@ module DataMapper
     module PhantomProperties
       def self.extended(base)
         base.class_eval <<-END
-          property :_id, String, :nullable => false, :accessor => :private
-          property :_type, String, :nullable => false, :accessor => :private, :default => '#{base}'
+          property :solr_id, String, :nullable => false, :accessor => :private
+          property :solr_type, String, :nullable => false, :accessor => :private, :default => '#{base}'
           
-          def _id
+          def solr_id
             modified_keys = key_properties.map do |p|
               val = p.get(self)
               if val.nil?
@@ -237,6 +234,7 @@ module DataMapper
               val
             end.compact
             modified_keys.join('#') unless modified_keys.empty?
+
           end
         END
       end
@@ -252,7 +250,7 @@ module DataMapper
     end
     
     def solr_type_filter
-      "#{properties[:_type].field.to_s}:#{solr_type_name}"
+      "#{properties[:solr_type].field.to_s}:#{solr_type_name}"
     end
     
     def search_by_solr(*args)
@@ -305,7 +303,11 @@ module DataMapper
         
         begin # Try and load this input and add it to the batch
           processed_item = factory.call(input)
-          batch << processed_item if processed_item
+          if processed_item && processed_item.valid?
+            batch << processed_item 
+          else
+            items_that_could_not_be_created << processed_item
+          end
         rescue => e
           throw e unless continue_on_errors
           inputs_that_could_not_be_loaded << input
@@ -333,7 +335,11 @@ module DataMapper
           problem_outputs = in_batches(items_that_could_not_be_created, recursive_options, &batch_operation)
         else
           items_that_could_not_be_created.each do |item|
-            problem_outputs += with_batch([item], !continue_on_errors, &batch_operation)
+            if item.valid? #try other items that were in a batch that failed
+              problem_outputs += with_batch([item], !continue_on_errors, &batch_operation)
+            else #don't need to try item again, it is not valid
+              problem_outputs << item
+            end
           end
         end
       end
@@ -362,7 +368,7 @@ module DataMapper
       ensure
         batch = []
       end
-      # puts "Sending back: #{outputs_that_could_not_be_created.inspect}"
+      #puts "Sending back: #{outputs_that_could_not_be_created.inspect}"
       return outputs_that_could_not_be_created
     end
 
