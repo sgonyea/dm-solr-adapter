@@ -14,7 +14,7 @@ rescue LoadError
 end
 
 ensure_in_path 'lib'
-require 'dm-solr-adapter'
+require 'dm_solr_adapter'
 
 task :default => 'spec:run'
 

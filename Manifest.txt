@@ -1,9 +1,10 @@
+.gitignore
 History.txt
 Manifest.txt
 README.txt
 Rakefile
 bin/dm-solr-adapter
-lib/dm-solr-adapter.rb
-spec/dm-solr-adapter_spec.rb
+lib/dm_solr_adapter.rb
+lib/dm_solr_adapter/adapter.rb
+spec/adapter_spec.rb
 spec/spec_helper.rb
-test/test_dm-solr-adapter.rb
