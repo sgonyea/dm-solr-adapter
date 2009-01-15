@@ -1,6 +1,7 @@
-
+require 'rubygems'
+require 'spec'
 require File.expand_path(
-    File.join(File.dirname(__FILE__), %w[.. lib dm-solr-adapter]))
+    File.join(File.dirname(__FILE__), %w[.. lib dm_solr_adapter]))
 
 Spec::Runner.configure do |config|
   # == Mock Framework
