@@ -4,7 +4,7 @@ Manifest.txt
 README.txt
 Rakefile
 bin/dm-solr-adapter
-lib/dm_solr_adapter.rb
-lib/dm_solr_adapter/adapter.rb
+lib/dm-solr-adapter.rb
+lib/dm-solr-adapter/adapter.rb
 spec/adapter_spec.rb
 spec/spec_helper.rb
