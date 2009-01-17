@@ -27,6 +27,8 @@ DataMapper access to your Solr search repository
 
 == REQUIREMENTS:
 dm-core
+dm-types
+data_objects
 solr-ruby
 addressable
 

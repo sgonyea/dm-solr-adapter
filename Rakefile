@@ -1,3 +1,5 @@
+require 'rubygems'
+
 # Look in the tasks/setup.rb file for the various options that can be
 # configured in this Rakefile. The .rake files in the tasks directory
 # are where the options are used.
@@ -14,7 +16,7 @@ rescue LoadError
 end
 
 ensure_in_path 'lib'
-require 'dm_solr_adapter'
+require 'dm-solr-adapter'
 
 task :default => 'spec:run'
 
