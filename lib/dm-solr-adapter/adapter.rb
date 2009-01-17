@@ -2,7 +2,25 @@
 # this might not work out.
 
 module DataMapper
-  module Resource
+  module SolrResource
+    def self.included(base)
+      base.class_eval <<-END          
+        include DataMapper::Resource
+        property :solr_id, String, :nullable => false, :accessor => :private
+        property :solr_type, String, :nullable => false, :accessor => :private, :default => '#{base}'
+
+        def solr_id
+          modified_keys = key_properties.map do |p|
+            val = p.get(self)
+            if val.nil?
+              val = p.nullable? ? '' : nil
+            end
+            val
+          end.compact
+          modified_keys.join('#') unless modified_keys.empty?  
+        end
+      END
+    end
     
     def to_solr_document(dirty=false)
       property_list = self.class.properties.select { |key, value| dirty ? self.dirty_attributes.key?(key) : true }
@@ -209,21 +227,7 @@ module DataMapper
     
     module PhantomProperties
       def self.extended(base)
-        base.class_eval <<-END
-          property :solr_id, String, :nullable => false, :accessor => :private
-          property :solr_type, String, :nullable => false, :accessor => :private, :default => '#{base}'
-          
-          def solr_id
-            modified_keys = key_properties.map do |p|
-              val = p.get(self)
-              if val.nil?
-                val = p.nullable? ? '' : nil
-              end
-              val
-            end.compact
-            modified_keys.join('#') unless modified_keys.empty?
-
-          end
+        base.class_eval <<-END          
         END
       end
     end

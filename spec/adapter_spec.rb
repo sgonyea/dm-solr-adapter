@@ -1,22 +1,17 @@
 require File.join(File.dirname(__FILE__), 'spec_helper.rb')
 
-require 'yaml'
-require 'facets/hash/symbolize_keys'
-
-configuration = YAML.load(<<-END_YAML
----
-test: &defaults
-  adapter: solr
-  host: localhost
-  port: 8983
-  index: /solr
-END_YAML
-).symbolize_keys.each{|k,v| v.symbolize_keys!}
-
-DataMapper.setup(:default, configuration[:test])
+DataMapper.setup(:search, { 
+                   :adapter => "solr",
+                   :host    => "localhost",
+                   :port    =>  8983,
+                   :index   => "/solr"})
 
 class Desk
-  include DataMapper::Resource
+  include DataMapper::SolrResource
+  def self.default_repository_name
+    :search
+  end
+
   property :id, String, :key => true, :field => :id_s, :nullable => false
   property :content, String, :field => :content_t
   property :width, Integer, :field => :width_i
@@ -32,21 +27,29 @@ class Desk
 end
 
 class Pencil
-  include DataMapper::Resource
+  include DataMapper::SolrResource
+
+  def self.default_repository_name
+    :search
+  end
   property :brand, String, :key => true, :field => :brand_s
   property :composition, String, :key => true, :field => :composition_s
 end
 
+class Ruler #non-search repository
+  include DataMapper::Resource
+  property :brand, String, :key => true
+end
 
 describe DataMapper::Adapters::SolrAdapter do
   def delete_all_desks
-    DataMapper::Repository.adapters[:default].send(:with_connection) do |c|
+    DataMapper::Repository.adapters[:search].send(:with_connection) do |c|
       c.delete_by_query("+solr_type:Desk")
     end
   end
 
   def commit
-    DataMapper::Repository.adapters[:default].send(:with_connection) do |c|
+    DataMapper::Repository.adapters[:search].send(:with_connection) do |c|
       c.commit
     end
   end
@@ -63,6 +66,25 @@ describe DataMapper::Adapters::SolrAdapter do
     delete_all_desks
   end
 
+  describe "mixing in virtual fields" do 
+    it "should mixin solr_id field to search repository models" do 
+      Desk.properties.has_property?("solr_id").should be_true
+      d  = Desk.new(:id => "key")
+      d.solr_id.should == "key"
+    end
+
+    it "should mixin solr_type field to search repository models" do 
+      Desk.properties.has_property?("solr_type").should be_true
+    end
+
+    it "should not mixin solr_id field to non search repository models" do 
+      Ruler.properties.has_property?("solr_id").should be_false
+    end
+    it "should not mixin solr_type field to non search repository models" do 
+      Ruler.properties.has_property?("solr_type").should be_false
+    end
+  end
+  
   it "should not allow the creation of a record with a null key if the key is not nullable" do
     Desk.new.save.should_not be(true)
   end
@@ -291,15 +313,15 @@ describe DataMapper::Adapters::SolrAdapter do
   end
   
   it "should not autocommit if it is told not to do so" do
-    DataMapper::Repository.adapters[:default].should_not_receive(:solr_commit)
-    DataMapper::Repository.adapters[:default].send(:with_connection, false) do |c|
+    DataMapper::Repository.adapters[:search].should_not_receive(:solr_commit)
+    DataMapper::Repository.adapters[:search].send(:with_connection, false) do |c|
       nil
     end
   end
   
   it "should autocommit if it is told to do so" do
-    DataMapper::Repository.adapters[:default].should_receive(:solr_commit)
-    DataMapper::Repository.adapters[:default].send(:with_connection, true) do |c|
+    DataMapper::Repository.adapters[:search].should_receive(:solr_commit)
+    DataMapper::Repository.adapters[:search].send(:with_connection, true) do |c|
       nil
     end
   end
